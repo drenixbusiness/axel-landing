@@ -1,0 +1,18 @@
+/* ===== Home page (below the laptop journey) ===== */
+.strip { position: relative; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--bg-2); }
+.strip ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.strip li { display: flex; align-items: center; gap: 14px; padding: 26px 24px; }
+.strip li + li { border-left: 1px solid var(--border); }
+.strip svg { flex: none; width: 26px; height: 26px; color: var(--orange); }
+.strip b { display: block; font-family: var(--font-h); font-weight: 600; font-size: 16px; }
+.strip span { font-size: 14px; color: var(--muted); }
+
+@media (max-width: 1000px) {
+  .strip ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .strip li:nth-child(3) { border-left: 0; }
+  .strip li:nth-child(n+3) { border-top: 1px solid var(--border); }
+}
+@media (max-width: 560px) {
+  .strip ul { grid-template-columns: 1fr; }
+  .strip li + li { border-left: 0; border-top: 1px solid var(--border); }
+}
