@@ -63,7 +63,7 @@
 .ls-arrows { display: flex; gap: 6px; }
 .ls-chrome svg { width: 18px; height: 18px; fill: none; stroke: #8b8d96; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ls-url {
-  position: absolute; left: 50%; transform: translateX(-50%);
+  position: absolute; left: 50%; transform: translateX(-50%); contain: strict; /* typing the address re-lays out only this bar */
   display: flex; align-items: center; gap: 8px; width: 560px; height: 32px; padding: 0 14px; border-radius: 9px;
   background: #2a2b31; font-family: var(--font-mono), ui-monospace, monospace; font-size: 14px; color: #e2e3e8;
 }
@@ -216,7 +216,7 @@
 .cr-kpi em { font-style: normal; font-size: 12.5px; color: #22c39b; font-weight: 700; }
 .cr-bars { display: flex; gap: 14px; align-items: flex-end; height: 82px; margin-top: 10px; }
 .cr-bars > div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; }
-.cr-bars i { width: 100%; border-radius: 6px 6px 3px 3px; background: linear-gradient(#2fd8ae, #138a6c); height: calc(var(--v) * clamp(.12, calc(var(--l, 0) * 2.4), 1) * 64px); }
+.cr-bars i { width: 100%; border-radius: 6px 6px 3px 3px; background: linear-gradient(#2fd8ae, #138a6c); height: calc(var(--v) * 64px); transform: scaleY(clamp(.12, calc(var(--l, 0) * 2.4), 1)); transform-origin: 50% 100%; }
 .cr-bars small { font-size: 11.5px; color: #8a90a0; }
 .cr-board { position: relative; flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .cr-col { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: #13161b; border: 1px solid rgba(255, 255, 255, .05); }
@@ -239,8 +239,8 @@
 .cr-card--ghost { background: transparent; border: 1.5px dashed rgba(255, 255, 255, .12); }
 .cr-card--moving {
   --col: calc(clamp(0, calc((var(--l, 0) - .2) / .18), 1) + clamp(0, calc((var(--l, 0) - .5) / .18), 1));
-  position: absolute; top: 48px; width: calc((100% - 42px) / 4 - 24px);
-  left: calc(12px + var(--col) * ((100% - 42px) / 4 + 14px));
+  position: absolute; top: 48px; left: 12px; width: calc((100% - 42px) / 4 - 24px);
+  transform: translateX(calc(var(--col) * (100% + 38px))); /* one column step: card width + 24px padding + 14px gap */
   border-color: rgba(34, 195, 155, .7); background: #1e252b;
   box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .8), 0 0 0 4px rgba(34, 195, 155, .12);
 }
@@ -395,7 +395,7 @@
 .lv-metrics span { display: block; font-size: 13px; color: #8a8d99; }
 .lv-metrics b { display: block; margin-top: 4px; font-family: var(--font-heading); font-size: 27px; letter-spacing: -.02em; }
 .lv-bars { display: flex; align-items: flex-end; gap: 5px; height: 100px; }
-.lv-bars i { flex: 1; border-radius: 3px; background: linear-gradient(#3ecf8e, #1f8a5c); height: calc(var(--h) * 100px * clamp(0, calc((var(--l, 0) - .5) * 4 - var(--i) * .02), 1)); }
+.lv-bars i { flex: 1; border-radius: 3px; background: linear-gradient(#3ecf8e, #1f8a5c); height: calc(var(--h) * 100px); transform: scaleY(clamp(0, calc((var(--l, 0) - .5) * 4 - var(--i) * .02), 1)); transform-origin: 50% 100%; }
 .lv-body > small { font-size: 12.5px; color: #8a8d99; }
 
 /* ============ 6. Playground ============ */

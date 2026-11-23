@@ -41,7 +41,30 @@ export type JourneyScene = {
   setImpact(x: number, y: number): { left: number; right: number };
   /** Left edge of the laptop screen at the main framing, as a fraction of the stage width. */
   screenLeft: number;
+  /** Render resolution as a device-pixel ratio; lowered on slow devices, raised again when there is headroom. */
+  quality: number;
+  maxQuality: number;
+  setQuality(ratio: number): void;
 };
+
+/** Let the browser paint and handle input between heavy start-up steps. */
+const breathe = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+/** Wait for a quiet moment (no input, no rendering work) before the heaviest step. */
+const idle = () =>
+  new Promise<void>((r) => ("requestIdleCallback" in window ? requestIdleCallback(() => r(), { timeout: 700 }) : setTimeout(r, 0)));
+
+/** Low-end hardware: few CPU cores or little memory. */
+function isWeakDevice() {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  return (nav.hardwareConcurrency ?? 8) <= 4 || (nav.deviceMemory ?? 8) <= 4;
+}
+
+/** Starting render resolution: sharp on good hardware, lighter on weak or very large screens. */
+function startQuality(w: number, h: number, weak: boolean) {
+  const dpr = window.devicePixelRatio || 1;
+  const pixelCap = Math.sqrt(2_400_000 / Math.max(1, w * h)); // never more than ~2.4 megapixels per frame
+  return Math.max(0.75, Math.min(dpr, weak ? 1 : 1.5, pixelCap));
+}
 
 function roundedRect(w: number, h: number, r: number) {
   const s = new THREE.Shape();
@@ -67,10 +90,19 @@ function canvasTexture(size: number, draw: (ctx: CanvasRenderingContext2D, s: nu
   return t;
 }
 
-export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): JourneyScene {
+export async function createJourneyScene(
+  host: HTMLElement,
+  screenEl: HTMLElement,
+  cancelled: () => boolean = () => false,
+): Promise<JourneyScene | null> {
   // ---------- renderers ----------
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // MSAA only on 1x screens of capable machines; high-density screens are smooth enough without it
+  const dpr = window.devicePixelRatio || 1;
+  const weak = isWeakDevice();
+  const renderer = new THREE.WebGLRenderer({ antialias: dpr < 1.5 && !weak, powerPreference: "high-performance" });
+  let quality = startQuality(host.clientWidth || innerWidth, host.clientHeight || innerHeight, weak);
+  const maxQuality = quality;
+  renderer.setPixelRatio(quality);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -85,12 +117,14 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
   scene.background = new THREE.Color(BG);
   scene.fog = new THREE.Fog(BG, 14, 30);
 
+  await idle();
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envTex;
   scene.environmentIntensity = 0.5;
 
   const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
+  await breathe();
 
   // ---------- lights ----------
   const key = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -107,13 +141,11 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
   scene.add(screenLight);
 
   // ---------- materials ----------
-  const alu = new THREE.MeshPhysicalMaterial({
-    color: 0x7d828c, metalness: 0.92, roughness: 0.34, clearcoat: 0.25, clearcoatRoughness: 0.5,
-  });
-  const aluDark = new THREE.MeshPhysicalMaterial({ color: 0x5a5e66, metalness: 0.9, roughness: 0.42 });
+  const alu = new THREE.MeshStandardMaterial({ color: 0x7d828c, metalness: 0.92, roughness: 0.32 });
+  const aluDark = new THREE.MeshStandardMaterial({ color: 0x5a5e66, metalness: 0.9, roughness: 0.42 });
   const keyMat = new THREE.MeshStandardMaterial({ color: 0x0b0c0f, metalness: 0.1, roughness: 0.78, envMapIntensity: 0.35 });
   const wellMat = new THREE.MeshStandardMaterial({ color: 0x0f1013, metalness: 0.2, roughness: 0.85, envMapIntensity: 0.25 });
-  const padMat = new THREE.MeshPhysicalMaterial({ color: 0x6c7079, metalness: 0.85, roughness: 0.22, clearcoat: 0.6 });
+  const padMat = new THREE.MeshStandardMaterial({ color: 0x6c7079, metalness: 0.85, roughness: 0.2 });
   const bezelMat = new THREE.MeshBasicMaterial({ color: 0x09090c });
   const displayMat = new THREE.MeshBasicMaterial({ color: 0x020203 });
 
@@ -223,6 +255,7 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
   screenEl.style.backfaceVisibility = "hidden";
   lid.add(screenObj);
 
+  await breathe();
   // ---------- floor, contact shadow, dust ----------
   const floorMat = new THREE.ShaderMaterial({
     uniforms: {
@@ -487,8 +520,13 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
   const local = new THREE.Vector3();
   const qLook = new THREE.Quaternion();
   const qT = new THREE.Quaternion();
+  const nrm = new THREE.Vector3();
+  const qWorld = new THREE.Quaternion();
+  let lastState: SceneState | null = null;
+  let cssShown = true;
 
   function render(st: SceneState) {
+    lastState = st;
     const { p, fallVh, approach, impactVh, cardTop } = st;
     const inHero = p < 1 || fallVh <= 0;
     const settleOut = easeInOut(span(p, T.shrinkStart, 1)); // hero -> fall blend
@@ -566,7 +604,7 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
     const power = clamp(0.35 + smoothstep(p, P(42), P(210)) * 0.65) * (1 - smoothstep(p, T.closeStart, T.closeStart + P(45)));
     laptop.updateMatrixWorld(true);
     screenObj.getWorldPosition(scrPos);
-    const nrm = new THREE.Vector3(0, 0, 1).applyQuaternion(screenObj.getWorldQuaternion(new THREE.Quaternion()));
+    nrm.set(0, 0, 1).applyQuaternion(screenObj.getWorldQuaternion(qWorld));
     screenLight.position.copy(scrPos).addScaledVector(nrm, 0.7);
     screenLight.intensity = 1.3 * power;
     // CSS backface hiding is unreliable here, so hide the HTML screen ourselves once it turns away
@@ -574,7 +612,11 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
     screenObj.visible = p < T.closeEnd && nrm.dot(toCam.copy(camera.position).sub(scrPos)) > 0;
 
     renderer.render(scene, camera);
-    css.render(scene, camera);
+    // the HTML screen only needs placing while it can be seen (it is hidden for the whole fall)
+    if (screenObj.visible || cssShown) {
+      css.render(scene, camera);
+      cssShown = screenObj.visible;
+    }
   }
 
   function destroy() {
@@ -594,7 +636,30 @@ export function createJourneyScene(host: HTMLElement, screenEl: HTMLElement): Jo
     css.domElement.remove();
   }
 
-  const api: JourneyScene = { render, resize, destroy, setImpact, screenLeft };
+  function setQuality(ratio: number) {
+    const r = Math.max(0.6, Math.min(maxQuality, ratio));
+    if (Math.abs(r - quality) < 0.01) return;
+    quality = r;
+    api.quality = r;
+    renderer.setPixelRatio(r);
+    renderer.setSize(view.w, view.h, false);
+    if (lastState) render(lastState); // resizing clears the canvas
+  }
+
+  const api: JourneyScene = { render, resize, destroy, setImpact, screenLeft, quality, maxQuality, setQuality };
   resize();
+  // compile every shader up front, off the main thread where the browser supports it,
+  // so the first scroll never stalls on a shader compile
+  await breathe();
+  try {
+    if (renderer.extensions.has("KHR_parallel_shader_compile")) await renderer.compileAsync(scene, camera);
+    else renderer.compile(scene, camera); // no background compiling here: do it now, in its own step
+  } catch {
+    /* compiled on first render instead */
+  }
+  if (cancelled()) {
+    destroy();
+    return null;
+  }
   return api;
 }

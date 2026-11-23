@@ -20,6 +20,7 @@ const mono = JetBrains_Mono({
   weight: ["400", "500"],
   variable: "--font-mono",
   display: "swap",
+  preload: false, // only the laptop screen uses it: load it when needed, not on every page
 });
 
 export const metadata: Metadata = {

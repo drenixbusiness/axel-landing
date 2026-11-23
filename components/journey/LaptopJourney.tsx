@@ -82,7 +82,6 @@ export function LaptopJourney() {
     const fixed = fixedRef.current!;
     const host = glRef.current!;
     const bandEls = BANDS.map((b) => stage.querySelector<HTMLElement>(`[data-band="${b.id}"]`)!);
-    const hint = stage.querySelector<HTMLElement>(".journey__hint");
     const MQLS = STATIC_GATES.map((q) => matchMedia(q));
     const gated = () => MQLS.some((m) => m.matches);
 
@@ -111,10 +110,17 @@ export function LaptopJourney() {
 
     const bandCache = BANDS.map(() => ({ op: -1, k: -1, live: false }));
     const slideCache = SLIDE_BANDS.map(() => ({ s: -1, l: -1, x: 9, vis: false }));
-    const scr = { power: -1, boot: -1, bar: -1, app: "", cart: -1, hint: -1 };
+    const scr = { power: -1, boot: -1, bar: -1, app: "", cart: -1 };
     const cr = { crack: -1, burst: -1, flash: -1, dent: -1, tilt: -1, shape: -1, hit: false, lastVh: -1 };
     const geo = { w: 0, h: 0, x0: 0, x1: 0 };
     let shakeTimer = 0;
+    // page positions, measured on resize instead of every frame
+    const lay = { heroTop: 0, heroRange: 1, finaleTop: Infinity, vh: 1 };
+    // what was drawn last, so an unchanged frame costs nothing
+    const last = { p: -1, fallVh: -1, approach: -1, impactVh: -1, cardTop: NaN as number | null, loadK: -1 };
+    // adaptive render resolution: frame-time windows while the laptop is moving
+    const perf = { sum: 0, n: 0, slow: 0, fast: 0, changed: 0, raised: 0, ceiling: 9, since: 0 };
+    let bodyObs: ResizeObserver | null = null;
     let screenRoot: HTMLElement | null = null;
     let slideEls: HTMLElement[] = [];
     let appEl: HTMLElement | null = null;
@@ -147,13 +153,6 @@ export function LaptopJourney() {
           c.live = live;
         }
       });
-      if (hint) {
-        const h = 1 - smoothstep(p, 0.003, 0.018);
-        if (Math.abs(h - scr.hint) > 0.01 || (h === 0 && scr.hint !== 0)) {
-          hint.style.opacity = h.toFixed(3);
-          scr.hint = h;
-        }
-      }
     }
 
     function updateScreen(p: number) {
@@ -259,32 +258,70 @@ export function LaptopJourney() {
       cr.lastVh = impactVh;
     }
 
+    function measureLayout() {
+      const y = scrollY;
+      lay.vh = innerHeight / 100;
+      lay.heroTop = section.getBoundingClientRect().top + y;
+      lay.heroRange = Math.max(1, section.offsetHeight - innerHeight);
+      lay.finaleTop = finale ? finale.getBoundingClientRect().top + y : Infinity;
+    }
+
     function apply(y: number) {
-      const vh = innerHeight / 100;
-      const nowY = scrollY;
-      const heroTop = section.getBoundingClientRect().top + nowY;
-      const heroRange = Math.max(1, section.offsetHeight - innerHeight);
+      const { vh, heroTop, heroRange, finaleTop } = lay;
       const heroEnd = heroTop + heroRange;
       const p = clamp((y - heroTop) / heroRange);
       let state: SceneState = { p, fallVh: 0, approach: 0, impactVh: 0, cardTop: null };
       if (finale && crashEl) {
-        const finaleTop = finale.getBoundingClientRect().top + nowY;
         const fallVh = clamp(y - heroEnd, 0, Math.max(0, finaleTop - heroEnd)) / vh;
         const approach = y > heroEnd ? clamp(1 - (finaleTop - y) / (FALL.approachVh * vh)) : 0;
         const impactVh = Math.max(0, y - finaleTop) / vh;
+        // the only per-frame layout read, and only while the laptop sits in the card
         state = { p, fallVh, approach, impactVh, cardTop: impactVh > 0 ? crashEl.getBoundingClientRect().top : null };
         updateCrash(impactVh);
       } else {
         state.fallVh = Math.max(0, y - heroEnd) / vh;
       }
-      journey?.render(state);
-      updateBands(p);
-      updateScreen(p);
+      const moved =
+        state.p !== last.p || state.fallVh !== last.fallVh || state.approach !== last.approach ||
+        state.impactVh !== last.impactVh || state.cardTop !== last.cardTop;
+      if (moved) {
+        journey?.render(state);
+        Object.assign(last, state);
+      }
+      if (moved || loadK !== last.loadK) updateBands(p);
+      if (state.p !== last.p || moved) updateScreen(p);
+      last.loadK = loadK;
+    }
+
+    // Lower the render resolution when frames run long, raise it again when there is headroom.
+    function sampleFrame(dt: number, now: number) {
+      if (!journey || dt <= 0 || dt > 250 || now - perf.since < 1200) return;
+      perf.sum += dt;
+      perf.n += 1;
+      if (perf.n < 40) return;
+      const avg = perf.sum / perf.n;
+      perf.sum = perf.n = 0;
+      perf.slow = avg > 24 ? perf.slow + 1 : 0;
+      perf.fast = avg < 18.5 ? perf.fast + 1 : 0;
+      if (now - perf.changed < 1500) return;
+      const q = journey.quality;
+      if (perf.slow >= 2 && q > 0.61) {
+        if (now - perf.raised < 4000) perf.ceiling = q - 0.01; // that step up was too much, stay below it
+        journey.setQuality(q - 0.25);
+        perf.changed = now;
+        perf.slow = 0;
+      } else if (perf.fast >= 3 && q < Math.min(journey.maxQuality, perf.ceiling) - 0.01) {
+        journey.setQuality(Math.min(q + 0.25, perf.ceiling));
+        perf.changed = perf.raised = now;
+        perf.fast = 0;
+      }
     }
 
     function tick(now: number) {
-      const dt = Math.min(100, now - (lastTick || now));
+      const raw = now - (lastTick || now);
+      const dt = Math.min(100, raw);
       lastTick = now;
+      sampleFrame(raw, now);
       shown += (target - shown) * (1 - Math.pow(1 - 0.14, dt / 16.667));
       loadK = Math.min(1, (now - loadStart) / 1100);
       loadK = 1 - Math.pow(1 - loadK, 3);
@@ -308,10 +345,12 @@ export function LaptopJourney() {
     };
     const onResize = () => {
       if (!journey) return;
+      measureLayout();
       journey.resize();
       stage.style.setProperty("--screen-left", `${(journey.screenLeft * 100).toFixed(2)}%`);
       measureCrash();
       target = scrollY;
+      last.p = -1; // resizing cleared the canvas: draw again even if nothing moved
       apply(shown);
       kick();
     };
@@ -322,14 +361,22 @@ export function LaptopJourney() {
       try {
         const { createJourneyScene } = await import("@/lib/journey/scene");
         if (disposed || gated()) return;
+        const stop = () => disposed || gated();
+        const made = await createJourneyScene(host, screenEl!, stop);
+        if (!made || stop()) { made?.destroy(); return; }
+        journey = made;
         html.classList.add("has-fall"); // shows the fixed 3D layer and the pinned finale
-        journey = createJourneyScene(host, screenEl!);
         stage.style.setProperty("--screen-left", `${(journey.screenLeft * 100).toFixed(2)}%`);
+        measureLayout();
         measureCrash();
         target = shown = scrollY;
-        const finaleTop = finale ? finale.getBoundingClientRect().top + scrollY : Infinity;
-        cr.lastVh = Math.max(0, shown - finaleTop); // no jolt when the page loads past the impact
+        cr.lastVh = Math.max(0, shown - lay.finaleTop); // no jolt when the page loads past the impact
+        Object.assign(last, { p: -1, loadK: -1 });
+        perf.since = performance.now();
         apply(shown);
+        // sections above the finale can change height (fonts, open FAQ answers): keep positions fresh
+        bodyObs = new ResizeObserver(() => { if (journey) { measureLayout(); target = scrollY; kick(); } });
+        bodyObs.observe(document.body);
         requestAnimationFrame(() => [stage, fixed].forEach((el) => el.classList.add("is-ready")));
         addEventListener("scroll", onScroll, { passive: true });
         addEventListener("resize", onResize);
@@ -346,6 +393,8 @@ export function LaptopJourney() {
     }
 
     function disable() {
+      bodyObs?.disconnect();
+      bodyObs = null;
       removeEventListener("scroll", onScroll);
       removeEventListener("resize", onResize);
       if (raf !== null) { cancelAnimationFrame(raf); raf = null; }
@@ -357,6 +406,7 @@ export function LaptopJourney() {
       [pin, fixed].forEach((el) => el?.classList.remove("is-shake", "is-crashed"));
       if (cardEl) cardEl.style.clipPath = "";
       bandCache.forEach((c) => Object.assign(c, { op: -1, k: -1, live: false }));
+      Object.assign(last, { p: -1, fallVh: -1, approach: -1, impactVh: -1, cardTop: NaN, loadK: -1 });
       Object.assign(cr, { crack: -1, burst: -1, flash: -1, dent: -1, tilt: -1, shape: -1, hit: false, lastVh: -1 });
     }
 
@@ -406,7 +456,6 @@ export function LaptopJourney() {
 
           <div className="journey__bands">
             <div className="band band--open fx-rise" data-band="open">
-              <span className="chip">{copy.open.eyebrow}</span>
               <h1 className="band__title band__title--xl"><Split text={copy.open.title} seed={11} /></h1>
               <p className="band__text">{copy.open.text}</p>
               <div className="band__cta">
@@ -424,7 +473,6 @@ export function LaptopJourney() {
               const f = FX[s.band];
               return (
                 <div key={s.band} className={`band fx-${f.fx}`} data-band={s.band}>
-                  <span className="chip"><i>{String(i + 1).padStart(2, "0")}</i>{s.chip}</span>
                   <h2 className="band__title">
                     {f.fx === "blur" ? (
                       <span className="blurpair">
@@ -452,10 +500,6 @@ export function LaptopJourney() {
             </div>
           </div>
 
-          <div className="journey__hint" aria-hidden="true">
-            <span>Scroll</span>
-            <i />
-          </div>
         </div>
       </div>
 
@@ -463,7 +507,6 @@ export function LaptopJourney() {
       <section className="journey__static" aria-label="What we build">
         <div className="container jst-hero">
           <div className="jst-hero__copy">
-            <span className="chip">{copy.open.eyebrow}</span>
             <h1 className="h1">{copy.open.title}</h1>
             <p className="lead">{copy.open.text}</p>
             <div className="actions">
@@ -486,7 +529,6 @@ export function LaptopJourney() {
           {SHOWCASES.map((s, i) => (
             <article className="jst-item" key={s.band}>
               <div className="jst-item__text">
-                <span className="chip"><i>{String(i + 1).padStart(2, "0")}</i>{s.chip}</span>
                 <h3 className="h2">{s.title}</h3>
                 <p className="lead">{s.text}</p>
                 <Link href={s.href} className="link">How we do it <Icon name="arrow" /></Link>

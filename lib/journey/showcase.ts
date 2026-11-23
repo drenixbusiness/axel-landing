@@ -4,7 +4,6 @@ import type { BandId } from "./timeline";
 
 export type Showcase = {
   band: BandId;
-  chip: string;
   title: string;
   text: string;
   app: string; // name in the screen's menu bar
@@ -14,7 +13,6 @@ export type Showcase = {
 export const SHOWCASES: Showcase[] = [
   {
     band: "web",
-    chip: "Website · Karvon Logistics",
     title: "A website that works while you sleep.",
     text: "Clear pages, fast on every phone, one easy way to get in touch. Ready for Google from day one.",
     app: "Browser",
@@ -22,7 +20,6 @@ export const SHOWCASES: Showcase[] = [
   },
   {
     band: "store",
-    chip: "Online store · Lumo Coffee",
     title: "A shop that never closes.",
     text: "Catalogue, cart, online payments and delivery. Your team runs it all from one simple panel.",
     app: "Browser",
@@ -30,7 +27,6 @@ export const SHOWCASES: Showcase[] = [
   },
   {
     band: "crm",
-    chip: "CRM system · Shifo Clinic",
     title: "Every lead in one place.",
     text: "Calls, Telegram messages and website forms land in one pipeline. Nothing gets lost, and the numbers update live.",
     app: "Shifo CRM",
@@ -38,7 +34,6 @@ export const SHOWCASES: Showcase[] = [
   },
   {
     band: "app",
-    chip: "Mobile app · Ziyo Learn",
     title: "Your app in their pocket.",
     text: "iOS and Android from one codebase, published to both stores, with reminders that bring people back.",
     app: "Studio",
@@ -46,7 +41,6 @@ export const SHOWCASES: Showcase[] = [
   },
   {
     band: "brand",
-    chip: "Logo & brand · Nuri Bakery",
     title: "A name people remember.",
     text: "Logo, colours and type that look right on a sign, a box and a phone screen.",
     app: "Studio",
@@ -54,7 +48,6 @@ export const SHOWCASES: Showcase[] = [
   },
   {
     band: "live",
-    chip: "Domain, hosting & support",
     title: "Live today. Looked after tomorrow.",
     text: "We register the domain, set up hosting and SSL, then keep watch with backups and monitoring.",
     app: "Terminal",
@@ -64,7 +57,6 @@ export const SHOWCASES: Showcase[] = [
 
 export const JOURNEY_COPY = {
   open: {
-    eyebrow: "IT services in Uzbekistan",
     title: "We build what your business runs on.",
     text: "Websites, CRM systems and mobile apps. Designed, built and looked after by one team.",
   },
