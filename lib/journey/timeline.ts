@@ -63,6 +63,16 @@ export const STATIC_GATES = [
 ];
 
 export const clamp = (v: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Left edge of the laptop screen at the main framing, as a fraction of the stage width.
+ * A pure function of the viewport aspect, so captions can be laid out before any 3D loads.
+ * (The scene frames the 1440x900 screen at 74% of the height, capped at 60-62% of the width.)
+ */
+export function screenLeftFor(aspect: number) {
+  const maxWf = aspect < 1.5 ? 0.62 : 0.6;
+  return 1 - 0.045 - Math.min(maxWf, (0.74 * 1.6) / aspect);
+}
 export const smoothstep = (p: number, e0: number, e1: number) => {
   const t = clamp((p - e0) / (e1 - e0));
   return t * t * (3 - 2 * t);

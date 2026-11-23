@@ -1,7 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { services } from "@/lib/services";
 import { Icon } from "./Icon";
 
@@ -11,10 +10,24 @@ type Key = "name" | "email" | "services" | "message";
 type Errors = Partial<Record<Key, string>>;
 
 export function ContactForm() {
-  const params = useSearchParams();
-  const preset = params.get("service");
-  const brandParam = params.get("brand")?.slice(0, 80) ?? undefined;
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Prefill from links like /contact?service=crm-systems or ?brand=Acme. Read after the first paint, so the
+  // form itself is part of the server HTML (useSearchParams would leave it out and make the page jump).
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const q = new URLSearchParams(window.location.search);
+    const brand = q.get("brand")?.slice(0, 80);
+    const company = form.querySelector<HTMLInputElement>("#company");
+    if (brand && company && !company.value) company.value = brand;
+    const preset = q.get("service");
+    if (preset) {
+      form.querySelectorAll<HTMLInputElement>('input[name="services"]').forEach((el) => {
+        if (el.dataset.slug === preset) el.checked = true;
+      });
+    }
+  }, []);
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
   const [errors, setErrors] = useState<Errors>({});
 
@@ -85,7 +98,7 @@ export function ContactForm() {
       </div>
       <div className="field">
         <label htmlFor="company">Company</label>
-        <input id="company" name="company" autoComplete="organization" defaultValue={brandParam} />
+        <input id="company" name="company" autoComplete="organization" />
       </div>
 
       <fieldset className="field field--full" aria-describedby={errors.services ? "services-err" : undefined}>
@@ -93,7 +106,7 @@ export function ContactForm() {
         <div className="chips">
           {services.map((s) => (
             <label className="chip" key={s.slug}>
-              <input type="checkbox" name="services" value={s.title} defaultChecked={preset === s.slug} />
+              <input type="checkbox" name="services" value={s.title} data-slug={s.slug} />
               <span>{s.title}</span>
             </label>
           ))}

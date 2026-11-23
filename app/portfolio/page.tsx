@@ -18,7 +18,7 @@ export default function PortfolioPage() {
       />
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <WorkCards cols={2} />
+          <WorkCards cols={2} heading="h2" />
         </div>
       </section>
       <CtaBand title="Want to see examples close to your idea?" text="Tell us what you're planning and we'll share relevant work and a rough estimate." />

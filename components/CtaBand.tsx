@@ -15,10 +15,10 @@ export function CtaBand({
             <p>{text}</p>
           </div>
           <div className="actions">
-            <Link href="/contact" className="btn">
+            <Link prefetch={false} href="/contact" className="btn">
               Start a project <Icon name="arrow" />
             </Link>
-            <Link href="/services" className="btn btn--ghost">
+            <Link prefetch={false} href="/services" className="btn btn--ghost">
               View services
             </Link>
           </div>

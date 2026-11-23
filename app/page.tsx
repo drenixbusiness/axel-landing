@@ -54,7 +54,7 @@ export default function Home() {
               <h2 className="h2">Everything your business needs online</h2>
               <p>Start with one project or hand us your whole digital side. Every service can be combined with the others.</p>
             </div>
-            <Link href="/services" className="btn btn--ghost">
+            <Link prefetch={false} href="/services" className="btn btn--ghost">
               All services <Icon name="arrow" />
             </Link>
           </div>
@@ -109,7 +109,7 @@ export default function Home() {
               <h2 className="h2">Projects we build</h2>
               <p>The kinds of products we design, build and support for our clients.</p>
             </div>
-            <Link href="/portfolio" className="btn btn--ghost">
+            <Link prefetch={false} href="/portfolio" className="btn btn--ghost">
               See all work <Icon name="arrow" />
             </Link>
           </div>

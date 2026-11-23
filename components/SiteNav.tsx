@@ -34,8 +34,9 @@ export function SiteNav() {
     <>
       <header className={`nav${scrolled ? " nav--scrolled" : ""}${open ? " nav--open" : ""}`}>
         <div className="container nav__inner">
-          <Link className="nav__logo" href="/" aria-label={`${site.name} home`}>
+          <Link prefetch={false} className="nav__logo" href="/">
             <Logo />
+            <span className="sr-only">{site.name} home</span>
           </Link>
           <nav className="nav__links" aria-label="Main">
             {navLinks.map((l) => (
@@ -45,7 +46,7 @@ export function SiteNav() {
             ))}
           </nav>
           <div className="nav__actions">
-            <Link href="/contact" className="btn btn--sm nav__cta">
+            <Link prefetch={false} href="/contact" className="btn btn--sm nav__cta">
               Start a project
             </Link>
             <button
@@ -65,9 +66,9 @@ export function SiteNav() {
       <div id="site-menu" className={open ? "menu menu--open" : "menu"} aria-hidden={!open} inert={!open}>
         <div className="container menu__inner">
           <nav className="menu__main" aria-label="Mobile">
-            <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>Home</Link>
+            <Link prefetch={false} href="/" aria-current={pathname === "/" ? "page" : undefined}>Home</Link>
             {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} aria-current={active(l.href) ? "page" : undefined}>
+              <Link prefetch={false} key={l.href} href={l.href} aria-current={active(l.href) ? "page" : undefined}>
                 {l.label}
               </Link>
             ))}
@@ -77,14 +78,14 @@ export function SiteNav() {
             <ul>
               {services.map((s) => (
                 <li key={s.slug}>
-                  <Link href={`/services/${s.slug}`}>
+                  <Link prefetch={false} href={`/services/${s.slug}`}>
                     <Icon name={s.icon} />
                     {s.title}
                   </Link>
                 </li>
               ))}
             </ul>
-            <Link href="/contact" className="btn">
+            <Link prefetch={false} href="/contact" className="btn">
               Start a project <Icon name="arrow" />
             </Link>
           </div>

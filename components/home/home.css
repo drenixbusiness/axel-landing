@@ -16,3 +16,6 @@
   .strip ul { grid-template-columns: 1fr; }
   .strip li + li { border-left: 0; border-top: 1px solid var(--border); }
 }
+
+/* Sections below the first screen are laid out and painted only as they come near the viewport */
+.home > .strip, .home > .section:not(.finale) { content-visibility: auto; contain-intrinsic-size: auto 760px; }

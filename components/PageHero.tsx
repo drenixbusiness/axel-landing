@@ -19,11 +19,11 @@ export function PageHero({
     <header className="page-hero">
       <div className="container">
         <nav className="crumbs fade-up" aria-label="Breadcrumb">
-          <Link href="/">Home</Link>
+          <Link prefetch={false} href="/">Home</Link>
           {crumbs.map((c) => (
             <span key={c.href} style={{ display: "contents" }}>
               <span aria-hidden="true">/</span>
-              <Link href={c.href}>{c.label}</Link>
+              <Link prefetch={false} href={c.href}>{c.label}</Link>
             </span>
           ))}
           <span aria-hidden="true">/</span>

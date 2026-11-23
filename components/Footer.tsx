@@ -10,34 +10,35 @@ export function Footer() {
       <div className="container">
         <div className="footer__grid">
           <div>
-            <Link href="/" aria-label={`${site.name} home`}>
+            <Link prefetch={false} href="/">
               <Logo />
+              <span className="sr-only">{site.name} home</span>
             </Link>
             <p className="footer__note">{site.description}</p>
           </div>
           <div>
-            <h3>Services</h3>
+            <h2>Services</h2>
             <ul>
               {services.map((s) => (
                 <li key={s.slug}>
-                  <Link href={`/services/${s.slug}`}>{s.title}</Link>
+                  <Link prefetch={false} href={`/services/${s.slug}`}>{s.title}</Link>
                 </li>
               ))}
             </ul>
           </div>
           <div>
-            <h3>Company</h3>
+            <h2>Company</h2>
             <ul>
-              <li><Link href="/">Home</Link></li>
+              <li><Link prefetch={false} href="/">Home</Link></li>
               {navLinks.map((l) => (
                 <li key={l.href}>
-                  <Link href={l.href}>{l.label}</Link>
+                  <Link prefetch={false} href={l.href}>{l.label}</Link>
                 </li>
               ))}
             </ul>
           </div>
           <div>
-            <h3>Contact</h3>
+            <h2>Contact</h2>
             <ul>
               <li><a href={`mailto:${site.contact.email}`}>{site.contact.email}</a></li>
               <li><a href={`tel:${tel}`}>{site.contact.phone}</a></li>

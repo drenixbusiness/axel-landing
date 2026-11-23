@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, startTransition, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  BANDS, FALL, IMPACT, P, SLIDE_BANDS, STATIC_GATES, T, bandK, bandOpacity, clamp, easeOut, slideLocal, slideVisibility, smoothstep, span,
+  BANDS, FALL, IMPACT, P, SLIDE_BANDS, STATIC_GATES, T, bandK, bandOpacity, clamp, easeOut, screenLeftFor, slideLocal, slideVisibility, smoothstep, span,
 } from "@/lib/journey/timeline";
 import { JOURNEY_COPY, SHOWCASES } from "@/lib/journey/showcase";
 import { contactHref, setBrand, useBrand } from "@/lib/journey/brand";
 import type { JourneyScene, SceneState } from "@/lib/journey/scene";
 import { Icon } from "../Icon";
-import { LaptopScreen, appName } from "./Screens";
+import { appName } from "./appNames";
 import { ScaledScreen } from "./ScaledScreen";
 import { Split, type SplitMode } from "./Split";
 import { edgePoints, makeCracks, makeJag, notchPath } from "./crash";
@@ -28,6 +28,38 @@ const FX: Record<string, { fx: string; mode: SplitMode; spread?: number }> = {
   live: { fx: "type", mode: "type", spread: 0.6 },
   settle: { fx: "rise", mode: "words" },
 };
+
+// The mini sites on the laptop screen are a big module: load it only when the 3D laptop starts.
+const LaptopScreen = lazy(() => import("./Screens").then((m) => ({ default: m.LaptopScreen })));
+
+// First signs of a real visitor: the 3D laptop starts on any of these.
+const WAKE_EVENTS = ["pointermove", "pointerdown", "wheel", "keydown", "touchstart", "scroll"] as const;
+const WAKE_AFTER_MS = 5000; // nobody has touched anything: start anyway, if the GPU is real
+
+/** Software WebGL (no GPU: virtual machines, blocklisted drivers, headless test runners) cannot run the scene smoothly. */
+function hasHardwareGL() {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2");
+    if (!gl) return false;
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+  } catch {
+    return false;
+  }
+}
+
+// Pictures of the still-version screens (public/screens), in SHOWCASES order. Captured from the live mini sites.
+const STILL_IMAGES = ["karvon", "lumo", "shifo", "ziyo", "nuri", "live"];
+const STILL_ALTS = [
+  "Concept website for Karvon Logistics",
+  "Concept online store for Lumo Coffee",
+  "Concept CRM pipeline for Shifo Clinic",
+  "Concept mobile app for Ziyo Learn",
+  "Concept logo and brand for Nuri Bakery",
+  "Terminal deploying a site, next to its uptime monitor",
+];
 
 const NOTCH_DEPTH = 30; // px the laptop breaks out of the card's top edge
 const CARD_RADIUS = 28;
@@ -47,7 +79,7 @@ function BrandField({ value, id }: { value: string; id: string }) {
           placeholder={c.placeholder}
           onChange={(e) => setBrand(e.target.value)}
         />
-        <Link href={contactHref(value)} className="btn">
+        <Link prefetch={false} href={contactHref(value)} className="btn">
           {c.cta} <Icon name="arrow" />
         </Link>
       </div>
@@ -63,7 +95,7 @@ export function LaptopJourney() {
   const fixedRef = useRef<HTMLDivElement>(null);
   const glRef = useRef<HTMLDivElement>(null);
   const [screenEl, setScreenEl] = useState<HTMLDivElement | null>(null);
-  const [mode, setMode] = useState<"unknown" | "scrub" | "static">("unknown");
+  const [live, setLive] = useState(false); // the 3D laptop has been asked for: mount its screen
   const brand = useBrand();
 
   // The screen lives in a detached element that three.js places in 3D.
@@ -84,6 +116,7 @@ export function LaptopJourney() {
     const bandEls = BANDS.map((b) => stage.querySelector<HTMLElement>(`[data-band="${b.id}"]`)!);
     const MQLS = STATIC_GATES.map((q) => matchMedia(q));
     const gated = () => MQLS.some((m) => m.matches);
+    const setMode = (m: "scrub" | "static") => { root.dataset.mode = m; };
 
     // the finale card before the footer, which the laptop falls into
     const finale = document.querySelector<HTMLElement>("[data-finale]");
@@ -105,8 +138,9 @@ export function LaptopJourney() {
     let shown = 0; // scrollY we are drawing (eased)
     let raf: number | null = null;
     let lastTick = 0;
-    const loadStart = performance.now();
-    let loadK = 0;
+    let scrolling = false; // caption scroll loop running (works before and without the 3D)
+    let armed = false;
+    let wakeTimer = 0;
 
     const bandCache = BANDS.map(() => ({ op: -1, k: -1, live: false }));
     const slideCache = SLIDE_BANDS.map(() => ({ s: -1, l: -1, x: 9, vis: false }));
@@ -117,7 +151,7 @@ export function LaptopJourney() {
     // page positions, measured on resize instead of every frame
     const lay = { heroTop: 0, heroRange: 1, finaleTop: Infinity, vh: 1 };
     // what was drawn last, so an unchanged frame costs nothing
-    const last = { p: -1, fallVh: -1, approach: -1, impactVh: -1, cardTop: NaN as number | null, loadK: -1 };
+    const last = { p: -1, fallVh: -1, approach: -1, impactVh: -1, cardTop: NaN as number | null };
     // adaptive render resolution: frame-time windows while the laptop is moving
     const perf = { sum: 0, n: 0, slow: 0, fast: 0, changed: 0, raised: 0, ceiling: 9, since: 0 };
     let bodyObs: ResizeObserver | null = null;
@@ -140,7 +174,7 @@ export function LaptopJourney() {
         const c = bandCache[i];
         const first = i === 0;
         const op = bandOpacity(p, band, first);
-        const k = first ? loadK : bandK(p, band);
+        const k = first ? 1 : bandK(p, band); // the opening caption makes its entrance in CSS, at first paint
         if (Math.abs(op - c.op) > 0.004 || ((op === 0 || op === 1) && op !== c.op)) {
           el.style.opacity = op.toFixed(3);
           el.style.visibility = op > 0 ? "visible" : "hidden";
@@ -271,7 +305,7 @@ export function LaptopJourney() {
       const heroEnd = heroTop + heroRange;
       const p = clamp((y - heroTop) / heroRange);
       let state: SceneState = { p, fallVh: 0, approach: 0, impactVh: 0, cardTop: null };
-      if (finale && crashEl) {
+      if (journey && finale && crashEl) {
         const fallVh = clamp(y - heroEnd, 0, Math.max(0, finaleTop - heroEnd)) / vh;
         const approach = y > heroEnd ? clamp(1 - (finaleTop - y) / (FALL.approachVh * vh)) : 0;
         const impactVh = Math.max(0, y - finaleTop) / vh;
@@ -288,9 +322,10 @@ export function LaptopJourney() {
         journey?.render(state);
         Object.assign(last, state);
       }
-      if (moved || loadK !== last.loadK) updateBands(p);
-      if (state.p !== last.p || moved) updateScreen(p);
-      last.loadK = loadK;
+      if (moved) {
+        updateBands(p);
+        updateScreen(p);
+      }
     }
 
     // Lower the render resolution when frames run long, raise it again when there is headroom.
@@ -323,12 +358,10 @@ export function LaptopJourney() {
       lastTick = now;
       sampleFrame(raw, now);
       shown += (target - shown) * (1 - Math.pow(1 - 0.14, dt / 16.667));
-      loadK = Math.min(1, (now - loadStart) / 1100);
-      loadK = 1 - Math.pow(1 - loadK, 3);
       const converged = Math.abs(target - shown) < 0.5;
       if (converged) shown = target;
       apply(shown);
-      if (converged && loadK >= 1) {
+      if (converged) {
         raf = null;
         lastTick = 0;
       } else {
@@ -337,50 +370,85 @@ export function LaptopJourney() {
     }
 
     const kick = () => {
-      if (raf === null && journey) raf = requestAnimationFrame(tick);
+      if (raf === null && scrolling) raf = requestAnimationFrame(tick);
+    };
+    const setScreenLeft = () => {
+      const aspect = document.documentElement.clientWidth / Math.max(1, innerHeight);
+      stage.style.setProperty("--screen-left", `${(screenLeftFor(aspect) * 100).toFixed(2)}%`);
     };
     const onScroll = () => {
       target = scrollY;
       kick();
     };
     const onResize = () => {
-      if (!journey) return;
+      if (!scrolling) return;
       measureLayout();
-      journey.resize();
-      stage.style.setProperty("--screen-left", `${(journey.screenLeft * 100).toFixed(2)}%`);
-      measureCrash();
+      setScreenLeft();
+      if (journey) {
+        journey.resize();
+        measureCrash();
+      }
       target = scrollY;
       last.p = -1; // resizing cleared the canvas: draw again even if nothing moved
       apply(shown);
       kick();
     };
 
+    // The captions follow the scroll from the start; the laptop joins them once it has loaded.
+    function startScroll() {
+      if (scrolling) return;
+      scrolling = true;
+      measureLayout();
+      setScreenLeft();
+      target = shown = scrollY;
+      last.p = -1;
+      apply(shown);
+      addEventListener("scroll", onScroll, { passive: true });
+      addEventListener("resize", onResize);
+      // sections can change height (fonts, open FAQ answers, the pinned finale): keep positions fresh
+      bodyObs = new ResizeObserver(() => { if (scrolling) { measureLayout(); target = scrollY; kick(); } });
+      bodyObs.observe(document.body);
+      document.fonts?.ready.then(() => { if (scrolling) onResize(); });
+    }
+
+    // The 3D laptop is the heaviest part of the page, so it waits for the first sign of a visitor.
+    const wake = () => {
+      disarm();
+      enable();
+    };
+    function arm() {
+      if (armed || journey || loading) return;
+      armed = true;
+      WAKE_EVENTS.forEach((e) => addEventListener(e, wake, { passive: true }));
+      wakeTimer = window.setTimeout(() => { if (hasHardwareGL()) wake(); }, WAKE_AFTER_MS);
+    }
+    function disarm() {
+      armed = false;
+      WAKE_EVENTS.forEach((e) => removeEventListener(e, wake));
+      clearTimeout(wakeTimer);
+    }
+
     async function enable() {
-      if (journey || loading) return;
+      if (journey || loading || disposed || gated()) return;
       loading = true;
+      startTransition(() => setLive(true)); // mount the laptop screen content, in small slices
+      stage.classList.add("is-loading");
       try {
-        const { createJourneyScene } = await import("@/lib/journey/scene");
+        const [{ createJourneyScene }] = await Promise.all([import("@/lib/journey/scene"), import("./Screens")]);
         if (disposed || gated()) return;
         const stop = () => disposed || gated();
         const made = await createJourneyScene(host, screenEl!, stop);
         if (!made || stop()) { made?.destroy(); return; }
         journey = made;
         html.classList.add("has-fall"); // shows the fixed 3D layer and the pinned finale
-        stage.style.setProperty("--screen-left", `${(journey.screenLeft * 100).toFixed(2)}%`);
         measureLayout();
         measureCrash();
-        target = shown = scrollY;
+        target = scrollY;
         cr.lastVh = Math.max(0, shown - lay.finaleTop); // no jolt when the page loads past the impact
-        Object.assign(last, { p: -1, loadK: -1 });
+        last.p = -1;
         perf.since = performance.now();
         apply(shown);
-        // sections above the finale can change height (fonts, open FAQ answers): keep positions fresh
-        bodyObs = new ResizeObserver(() => { if (journey) { measureLayout(); target = scrollY; kick(); } });
-        bodyObs.observe(document.body);
         requestAnimationFrame(() => [stage, fixed].forEach((el) => el.classList.add("is-ready")));
-        addEventListener("scroll", onScroll, { passive: true });
-        addEventListener("resize", onResize);
-        document.fonts?.ready.then(() => { if (journey) onResize(); });
         kick();
       } catch (err) {
         console.warn("3D laptop unavailable, showing the still version", err);
@@ -389,10 +457,14 @@ export function LaptopJourney() {
         setMode("static");
       } finally {
         loading = false;
+        stage.classList.remove("is-loading");
       }
     }
 
     function disable() {
+      disarm();
+      setLive(false);
+      scrolling = false;
       bodyObs?.disconnect();
       bodyObs = null;
       removeEventListener("scroll", onScroll);
@@ -406,7 +478,7 @@ export function LaptopJourney() {
       [pin, fixed].forEach((el) => el?.classList.remove("is-shake", "is-crashed"));
       if (cardEl) cardEl.style.clipPath = "";
       bandCache.forEach((c) => Object.assign(c, { op: -1, k: -1, live: false }));
-      Object.assign(last, { p: -1, fallVh: -1, approach: -1, impactVh: -1, cardTop: NaN, loadK: -1 });
+      Object.assign(last, { p: -1, fallVh: -1, approach: -1, impactVh: -1, cardTop: NaN });
       Object.assign(cr, { crack: -1, burst: -1, flash: -1, dent: -1, tilt: -1, shape: -1, hit: false, lastVh: -1 });
     }
 
@@ -416,7 +488,8 @@ export function LaptopJourney() {
         setMode("static");
       } else {
         setMode("scrub");
-        enable();
+        startScroll();
+        arm();
       }
     }
 
@@ -436,7 +509,7 @@ export function LaptopJourney() {
   const copy = JOURNEY_COPY;
 
   return (
-    <div className="journey" ref={rootRef} data-mode={mode}>
+    <div className="journey" ref={rootRef} data-mode="unknown">
       <noscript>
         <style>{`.journey__scrub{display:none!important}.journey__static{display:block!important}`}</style>
       </noscript>
@@ -459,8 +532,8 @@ export function LaptopJourney() {
               <h1 className="band__title band__title--xl"><Split text={copy.open.title} seed={11} /></h1>
               <p className="band__text">{copy.open.text}</p>
               <div className="band__cta">
-                <Link href="/contact" className="btn">Start a project <Icon name="arrow" /></Link>
-                <Link href="/services" className="btn btn--ghost">Our services</Link>
+                <Link prefetch={false} href="/contact" className="btn">Start a project <Icon name="arrow" /></Link>
+                <Link prefetch={false} href="/services" className="btn btn--ghost">Our services</Link>
               </div>
             </div>
 
@@ -485,7 +558,7 @@ export function LaptopJourney() {
                   </h2>
                   <p className="band__text">{s.text}</p>
                   <div className="band__cta">
-                    <Link href={s.href} className="link">How we do it <Icon name="arrow" /></Link>
+                    <Link prefetch={false} href={s.href} className="link">How we do it <Icon name="arrow" /></Link>
                   </div>
                 </div>
               );
@@ -510,12 +583,14 @@ export function LaptopJourney() {
             <h1 className="h1">{copy.open.title}</h1>
             <p className="lead">{copy.open.text}</p>
             <div className="actions">
-              <Link href="/contact" className="btn">Start a project <Icon name="arrow" /></Link>
-              <Link href="/services" className="btn btn--ghost">Our services</Link>
+              <Link prefetch={false} href="/contact" className="btn">Start a project <Icon name="arrow" /></Link>
+              <Link prefetch={false} href="/services" className="btn btn--ghost">Our services</Link>
             </div>
           </div>
           <div className="flat-laptop" aria-hidden="true">
-            <div className="flat-laptop__lid"><ScaledScreen index={0} l={0.2} /></div>
+            <div className="flat-laptop__lid">
+              <ScaledScreen index={0} l={0.2} waitForVisitor />
+            </div>
             <div className="flat-laptop__base" />
           </div>
         </div>
@@ -531,9 +606,9 @@ export function LaptopJourney() {
               <div className="jst-item__text">
                 <h3 className="h2">{s.title}</h3>
                 <p className="lead">{s.text}</p>
-                <Link href={s.href} className="link">How we do it <Icon name="arrow" /></Link>
+                <Link prefetch={false} href={s.href} className="link">How we do it <Icon name="arrow" /></Link>
               </div>
-              <div className="jst-item__frame"><ScaledScreen index={i} l={[0.55, 0.9, 0.86, 0.9, 0.95, 0.95][i]} /></div>
+              <div className="jst-item__frame"><ScaledScreen index={i} image={STILL_IMAGES[i]} alt={STILL_ALTS[i]} /></div>
             </article>
           ))}
           <article className="jst-item jst-item--play">
@@ -547,7 +622,9 @@ export function LaptopJourney() {
         </div>
       </section>
 
-      {screenEl && mode === "scrub" ? createPortal(<LaptopScreen brand={brand} />, screenEl) : null}
+      {screenEl && live
+        ? createPortal(<Suspense fallback={null}><LaptopScreen brand={brand} /></Suspense>, screenEl)
+        : null}
     </div>
   );
 }

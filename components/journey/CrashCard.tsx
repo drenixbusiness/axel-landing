@@ -18,10 +18,10 @@ function CardBody({ brand }: { brand: string }) {
       <h2 className="h2">{c.title}</h2>
       <p>{c.text}</p>
       <div className="actions">
-        <Link href={contactHref(brand)} className="btn">
+        <Link prefetch={false} href={contactHref(brand)} className="btn">
           {c.cta} <Icon name="arrow" />
         </Link>
-        <Link href="/services" className="btn btn--ghost">
+        <Link prefetch={false} href="/services" className="btn btn--ghost">
           View services
         </Link>
       </div>

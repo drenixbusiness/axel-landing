@@ -7,7 +7,7 @@ export default function NotFound() {
     <main id="main">
       <PageHero eyebrow="404" title="Page not found" lead="The page you're looking for doesn't exist or has moved.">
         <div className="actions" style={{ marginTop: 32 }}>
-          <Link href="/" className="btn">
+          <Link prefetch={false} href="/" className="btn">
             Back to home <Icon name="arrow" />
           </Link>
         </div>

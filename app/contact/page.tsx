@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { PageHero } from "@/components/PageHero";
 import { ContactForm } from "@/components/ContactForm";
 import { Icon } from "@/components/Icon";
@@ -28,9 +27,7 @@ export default function ContactPage() {
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container contact">
           <div className="card form-card">
-            <Suspense>
-              <ContactForm />
-            </Suspense>
+            <ContactForm />
           </div>
           <ul className="info">
             {items.map((it) => (

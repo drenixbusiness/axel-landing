@@ -6,7 +6,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 import { logoStrokes } from "@/lib/logo";
-import { FALL, IMPACT, P, T, clamp, easeInOut, sampleKeys, smoothstep, span, type Key } from "./timeline";
+import { FALL, IMPACT, P, T, clamp, easeInOut, sampleKeys, screenLeftFor, smoothstep, span, type Key } from "./timeline";
 
 // Laptop dimensions (world units; 1 unit is about 10 cm)
 const W = 3.2;
@@ -439,7 +439,7 @@ export async function createJourneyScene(
     const wf = SCREEN_W / Vw;
     const margin = 0.045;
     const centerFrac = 0.5 - margin - wf / 2; // screen centre right of the middle, as a fraction of width
-    screenLeft = 1 - margin - wf;
+    screenLeft = screenLeftFor(aspect); // = 1 - margin - wf
     const off = centerFrac * Vw;
     const lift = 0.035 * vis(d); // nudge down a little so the nav never covers the top
     const F = [S.x + n.x * d - off, S.y + n.y * d + lift, S.z + n.z * d, S.x - off, S.y + lift, S.z];

@@ -2,6 +2,7 @@
 // --s (0..1 visibility) and --l (0..1 progress through its scroll band), written by the journey loop.
 import { brandInitials, brandSlug } from "@/lib/journey/showcase";
 import { LogoMark } from "../Logo";
+import { appName } from "./appNames";
 import "./screens.css";
 
 type CSSVars = React.CSSProperties & Record<`--${string}`, string | number>;
@@ -474,7 +475,6 @@ export function SlidePlayground({ brand }: { brand: string }) {
 export const SLIDES = [SlideKarvon, SlideLumo, SlideCrm, SlideZiyo, SlideNuri, SlideLive];
 
 /* ---------------- the whole screen (menu bar, boot, slides) ---------------- */
-const APP_NAMES = ["Browser", "Browser", "Shifo CRM", "Studio", "Studio", "Terminal", "Browser"];
 
 function Menubar({ app = "Axel" }: { app?: string }) {
   return (
@@ -491,10 +491,6 @@ function Menubar({ app = "Axel" }: { app?: string }) {
       </div>
     </div>
   );
-}
-
-export function appName(i: number) {
-  return APP_NAMES[i] ?? "Axel";
 }
 
 export function LaptopScreen({ brand }: { brand: string }) {

@@ -34,10 +34,10 @@ export default async function ServicePage({ params }: Props) {
     <main id="main">
       <PageHero eyebrow={s.title} title={s.short} lead={s.lead} crumbs={[{ href: "/services", label: "Services" }]}>
         <div className="actions" style={{ marginTop: 32 }}>
-          <Link href={`/contact?service=${s.slug}`} className="btn">
+          <Link prefetch={false} href={`/contact?service=${s.slug}`} className="btn">
             Discuss your project <Icon name="arrow" />
           </Link>
-          <Link href="/services" className="btn btn--ghost">
+          <Link prefetch={false} href="/services" className="btn btn--ghost">
             All services
           </Link>
         </div>
@@ -92,13 +92,13 @@ export default async function ServicePage({ params }: Props) {
               <span className="eyebrow">Often combined with</span>
               <h2 className="h2">Other services</h2>
             </div>
-            <Link href="/services" className="btn btn--ghost">
+            <Link prefetch={false} href="/services" className="btn btn--ghost">
               All services <Icon name="arrow" />
             </Link>
           </div>
           <Reveal className="svc-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
             {others.map((o) => (
-              <Link key={o.slug} href={`/services/${o.slug}`} className="card svc" data-stagger>
+              <Link prefetch={false} key={o.slug} href={`/services/${o.slug}`} className="card svc" data-stagger>
                 <span className="icon-box"><Icon name={o.icon} /></span>
                 <h3 className="h3">{o.title}</h3>
                 <p>{o.short}</p>

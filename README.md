@@ -38,3 +38,15 @@ npm start       # serve the production build
 
 Phones, tablets in portrait and visitors with reduced motion get a still version of the journey with the same
 content.
+
+## Performance notes
+
+- The 3D laptop (three.js) is the heaviest part of the site, so it starts on the visitor's first input (mouse move,
+  scroll, touch or key), or by itself after 5 seconds on machines with a real GPU. Machines with software-only WebGL
+  (no GPU) wait for input. The captions follow the scroll from the start either way.
+- Below the first screen, sections use `content-visibility: auto`, and stylesheets are inlined into the HTML
+  (`experimental.inlineCss` in `next.config.ts`).
+- The still version shows pictures of the laptop screens (`public/screens/*.webp`, captured from the live mini sites
+  in `components/journey/Screens.tsx`). Capture them again if a slide changes. The phone hero builds its live screen
+  on the first touch or scroll and shows a boot screen until then.
+- Only the main nav links prefetch their pages; other links load the page on click.

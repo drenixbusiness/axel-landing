@@ -21,7 +21,7 @@ export default function ServicesPage() {
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <ServiceGrid />
+          <ServiceGrid heading="h2" />
         </div>
       </section>
 
