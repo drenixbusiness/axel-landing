@@ -405,3 +405,33 @@ html.has-fall main .card, html.has-fall .faq details { background: rgba(27, 28, 
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- custom scrollbar (mouse and trackpad devices; touch screens keep the native one) ---------- */
+.sbar { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  /* the native bar is hidden from the first paint, so the page never shifts when the custom one appears */
+  html { scrollbar-width: none; }
+  html::-webkit-scrollbar { display: none; }
+
+  .sbar { display: block; position: fixed; top: 6px; right: 0; bottom: 6px; width: 16px; z-index: 70; cursor: pointer; }
+  .sbar.is-off { display: none; }
+  .sbar::before { /* rail */
+    content: ""; position: absolute; top: 0; bottom: 0; right: 4px; width: 8px; border-radius: 99px;
+    background: rgba(255, 255, 255, .07); opacity: 0; transition: opacity .25s;
+  }
+  .sbar__thumb { position: absolute; top: 0; right: 0; width: 16px; will-change: transform; cursor: grab; }
+  .sbar__thumb i {
+    position: absolute; top: 0; bottom: 0; right: 4px; width: 8px; border-radius: 99px;
+    background: linear-gradient(180deg, #ffa451, var(--orange) 55%, #e86a00);
+    transform: scaleX(.5); transform-origin: 100% 50%; opacity: .4;
+    transition: transform .22s var(--ease-out), opacity .3s, box-shadow .3s;
+  }
+  .sbar.is-active .sbar__thumb i { opacity: .85; }
+  .sbar:hover::before, .sbar.is-drag::before { opacity: 1; }
+  .sbar:hover .sbar__thumb i, .sbar.is-drag .sbar__thumb i { transform: scaleX(1); opacity: 1; box-shadow: 0 0 14px rgba(255, 122, 0, .5); }
+  .sbar.is-drag .sbar__thumb { cursor: grabbing; }
+  html.is-sbar-drag, html.is-sbar-drag * { user-select: none !important; cursor: grabbing !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sbar::before, .sbar__thumb i { transition: none; }
+}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { SiteNav } from "@/components/SiteNav";
 import { Footer } from "@/components/Footer";
+import { ScrollBar } from "@/components/ScrollBar";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteNav />
         {children}
         <Footer />
+        <ScrollBar />
       </body>
     </html>
   );

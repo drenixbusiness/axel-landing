@@ -441,6 +441,7 @@ export function LaptopJourney() {
         if (!made || stop()) { made?.destroy(); return; }
         journey = made;
         html.classList.add("has-fall"); // shows the fixed 3D layer and the pinned finale
+        journey.resize(); // the layer was hidden (0x0) while the scene was built: size the canvas now
         measureLayout();
         measureCrash();
         target = scrollY;
