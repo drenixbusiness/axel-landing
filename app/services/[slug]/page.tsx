@@ -96,7 +96,7 @@ export default async function ServicePage({ params }: Props) {
               All services <Icon name="arrow" />
             </Link>
           </div>
-          <Reveal className="svc-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          <Reveal className="svc-grid svc-grid--trio">
             {others.map((o) => (
               <Link prefetch={false} key={o.slug} href={`/services/${o.slug}`} className="card svc" data-stagger>
                 <span className="icon-box"><Icon name={o.icon} /></span>
